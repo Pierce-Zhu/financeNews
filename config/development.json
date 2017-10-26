@@ -12,6 +12,15 @@
 		"view cache": false
 	},
 
+	"mysqlConfig":{
+        "connectionLimit" : 30,
+        "host"     : "192.168.33.10",
+        "user"     : "root",
+        "password" : "mysqlpwd",
+        "database" : "financenews",
+        "port": 3306
+    },
+
 	"middleware": {
 		"static": {
 			"module": {
