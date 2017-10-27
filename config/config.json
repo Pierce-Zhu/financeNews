@@ -15,6 +15,15 @@
         "views": "path:./site/views"
     },
 
+    "mysqlConfig":{
+        "connectionLimit" : 30,
+        "host"     : "192.168.33.10",
+        "user"     : "root",
+        "password" : "mysqlpwd",
+        "database" : "financenews",
+        "port": 3306
+    },
+
     "view engines": {
         "ejs": {
             "module": "ejs",

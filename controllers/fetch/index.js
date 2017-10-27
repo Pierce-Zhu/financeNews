@@ -7,14 +7,11 @@ var cheerio = require('cheerio'),
     URL = require("url");
 
 var async = require('async');
-var eventproxy = require('eventproxy');   //管理并发结果
+var eventproxy = require('eventproxy');   //管理并发
 var ep = eventproxy();
+var moment = require('moment');
+var Mysql = require('../../lib/mysqlService');
 
-var baseUrl = 'http://blog.csdn.net/web/index.html';
-var pageUrls = [];
-for (var _i = 1; _i < 3; _i++) {
-    pageUrls.push(baseUrl + '?&page=' + _i);
-}
 
 module.exports = function(router) {
 
@@ -22,7 +19,15 @@ module.exports = function(router) {
     //     res.send('fetch data zsxn');
     // });
 
+    //招商信诺文章   http://www.cignacmb.com/baoxianzhishi/
     router.get('/zsxn', function (req, res, next) {
+        var baseUrl = 'http://www.cignacmb.com/baoxianzhishi/';
+        var host = 'http://www.cignacmb.com';
+        var pageUrls = [baseUrl];
+        // for (var i = 1; i < 10; i++) {
+        //     pageUrls.push(baseUrl + 'page-' + i + '.html');
+        // }
+        console.log("articleUrls>>>>>>>>>", pageUrls);
         var articleUrls = [];
         // 命令 ep 重复监听 emit事件(get_topic_html) 3 次再行动
         ep.after('get_page_data', pageUrls.length, function (eps) {
@@ -41,23 +46,40 @@ module.exports = function(router) {
                         console.log('抓取 ' + myurl + ' 成功', '，耗时' + time + '毫秒');
                         concurrencyCount--;
 
-                        var $ = cheerio.load(body);
+                        var $ = cheerio.load(body,  {decodeEntities: false});  //防止转码
+                        var data  = $('.zixun-detail-content');
+                        var arrTemp = [];
                         var result = {
-                            userId: URL.parse(myurl).pathname.substring(1),
-                            blogTitle: $("#blog_title a").text(),
-                            visitCount: parseInt($('#blog_rank>li').eq(0).text().split(/[:：]/)[1]),
-                            score: parseInt($('#blog_rank>li').eq(1).text().split(/[:：]/)[1]),
-                            oriCount: parseInt($('#blog_statistics>li').eq(0).text().split(/[:：]/)[1]),
-                            copyCount: parseInt($('#blog_statistics>li').eq(1).text().split(/[:：]/)[1]),
-                            trsCount: parseInt($('#blog_statistics>li').eq(2).text().split(/[:：]/)[1]),
-                            cmtCount: parseInt($('#blog_statistics>li').eq(3).text().split(/[:：]/)[1])
+                            title: data.find('h1').text(),
+                            category_name: 'insurance',
+                            source_author: data.find('.time-source').find('span').eq(1).text().split('：')[1],
+                            source_link: myurl,
+                            excerpt: data.find('.abstract').find('p').text(),
+                            // content:data.find('.field-item').text(),
+                            content:data.find('.field-item').html(),
+                            published_at: data.find('.time-source').find('span').eq(0).text().split('：')[1],
+                            created_at: moment().format('YYYY-MM-DD HH:mm:ss')
                         };
-                        callback(null, result);
+                        arrTemp.push(result.title);
+                        arrTemp.push(result.category_name);
+                        arrTemp.push(result.source_author);
+                        arrTemp.push(result.source_link);
+                        arrTemp.push(result.excerpt);
+                        arrTemp.push(result.content);
+                        arrTemp.push(result.published_at);
+                        arrTemp.push(result.created_at);
+
+                        // callback(null, result);
+                        console.log("result,,,,,,,,,,,,,,,,,,,", result);
+                        var sql = 'insert into zsxn(title, category_name, source_author, source_link,excerpt,content,published_at,created_at) values(?,?,?,?,?,?,?,?)';
+                        Mysql.queryInsert(sql, arrTemp, function(errInsert, row, field) {
+                            callback(errInsert, result);
+                        })
                     });
 
             };
             // 控制最大并发数为5，在结果中取出callback返回来的整个结果数组。
-            async.mapLimit(articleUrls, 5, function (myurl, callback) {
+            async.mapLimit(articleUrls, 3, function (myurl, callback) {
                 fetchUrl(myurl, callback);
             }, function (err, result) {
                 console.log('=========== result: ===========\n', result.length);
@@ -68,20 +90,19 @@ module.exports = function(router) {
         // 获取每页的链接数组，这里不要用emit返回了，因为我们获得的已经是一个数组了。
         pageUrls.forEach(function (page) {
             request.get(page, function (err, rs, body) {
-                // 常规的错误处理urlObj
                 if (err) {
                     return next(err);
                 }
-                // 提取作者博客链接，注意去重
+                // 提取咨询链接，去重
                 var $ = cheerio.load(body);
-                $('.blog_list').each(function (i, e) {
-                    // console.log("foreach eeeeeee>>>>>>>>", e.text);
-                    var u = $('.csdn-tracking-statistics', e).find('a').attr('href');
-                    if (articleUrls.indexOf(u) === -1) {
-                        articleUrls.push(u);
+                $('.clearfix').each(function (i, e) {
+                    // console.log("foreach eeeeeee>>>>>>>>", e.text());
+                    var u = $('h3', e).find('a').attr('href');
+                    if (articleUrls.indexOf(u) === -1 && u) {   //非法undefined
+                        articleUrls.push(host + u);
                     }
                 });
-                console.log('get authorUrls successful!\n', articleUrls);
+                // console.log('get authorUrls successful!\n', articleUrls);
                 ep.emit('get_page_data', 'get authorUrls successful');
             });
         });
