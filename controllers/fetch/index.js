@@ -11,6 +11,7 @@ var eventproxy = require('eventproxy');   //管理并发
 var ep = eventproxy();
 var moment = require('moment');
 var Mysql = require('../../lib/mysqlService');
+var Html2md = require('../../lib/html2md');
 
 
 module.exports = function(router) {
@@ -56,7 +57,8 @@ module.exports = function(router) {
                             source_link: myurl,
                             excerpt: data.find('.abstract').find('p').text(),
                             // content:data.find('.field-item').text(),
-                            content:data.find('.field-item').html(),
+                            // content:data.find('.field-item').html(), //原始html文本
+                            content: Html2md.html2md(data.find('.field-item').html()),
                             published_at: data.find('.time-source').find('span').eq(0).text().split('：')[1],
                             created_at: moment().format('YYYY-MM-DD HH:mm:ss')
                         };
